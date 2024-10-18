@@ -46,7 +46,16 @@ def emdDecomposition(signal):
 
 
 def passBand(signal,lowCut,highCut,fs):
-    sos = scipy.signal.butter(lowCut,highCut,fs)
+    #We normalize the frequencies by dividing by the Nyquist frequency 
+    
+    nyquist = 0.5 * fs
+    low = lowCut / nyquist
+    high = highCut / nyquist
+    
+    #We define the filter    
+    sos = scipy.signal.butter(N=4,Wn=[lowCut,highCut],btype='bandpass',output='sos',fs=fs)
+    
+    #Applying the filter to the signal    
     bandPassSignal = scipy.signal.sosfilt(sos,signal)
     return bandPassSignal
 
