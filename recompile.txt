@@ -1,2 +1,1 @@
-pyinstaller --onefile --hidden-import sklearn --hidden-import numpy --hidden-import numpy.core._multiarray_umath --add-data "label_encoder.pkl;." --add-data "X.npy;." --add-data "eegModel.h5;." Application\main.py
-
+pyinstaller --onefile --hidden-import sklearn --hidden-import numpy --hidden-import numpy.core._multiarray_umath --hidden-import numpy.core.multiarray --add-data "label_encoder.pkl;." --add-data "X.npy;." --add-data "eegModel.h5;." Application\main.py
