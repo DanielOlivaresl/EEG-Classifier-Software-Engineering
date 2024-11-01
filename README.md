@@ -1,45 +1,38 @@
-# EEG-Classifier-Softwate-Engineering
-Repository for a system to classify EEG signals using Machine Learning techniques
+# EEG Classifier Software Engineering
 
+Este proyecto permite clasificar señales EEG mediante un modelo de aprendizaje automático, proporcionando una interfaz sencilla para el usuario final y opciones de desarrollo para mejoras.
 
+## Instrucciones para Usuarios
 
-El archivo `Dockerfile` configura un entorno basado en Python 3.11.9 con las dependencias necesarias. A continuación, se detallan los pasos para construir y ejecutar el contenedor usando Docker.
+1. **Clonar el Repositorio**  
+   Para obtener la última versión de la aplicación, ejecuta el siguiente comando en tu terminal o línea de comandos:
+   _bash_
+   git clone https://github.com/DanielOlivaresl/EEG-Classifier-Software-Engineering.git
+   cd EEG-Classifier-Software-Engineering
+   git pull
+   _bash_
 
-## Requisitos
+2. **Ejecutar el Software**  
+   Una vez que hayas descargado los archivos, simplemente ejecuta el archivo _.exe_ ubicado en la carpeta raíz del proyecto:
+   _bash_
+   ./EEGClassifier.exe
+   _bash_
+   Esto abrirá la interfaz del programa, lista para clasificar datos EEG.
 
-- **Docker**: Necesitas tener Docker instalado en tu sistema. Puedes verificar la instalación ejecutando el siguiente comando en la terminal:
+## Instrucciones para Desarrolladores
 
-  _bash_
-  docker --version
-  _
+Si deseas hacer cambios en el código fuente, sigue estas instrucciones para compilar correctamente el ejecutable actualizado:
 
-### Instalación de Docker
+1. **Realizar Cambios**  
+   Realiza los cambios deseados en el código y guarda tus modificaciones.
 
-1. **Windows**:
-   - Descarga el instalador desde [Docker Desktop para Windows](https://docs.docker.com/desktop/install/windows-install/).
-   - Sigue las instrucciones del instalador y asegúrate de que Docker esté ejecutándose después de la instalación.
+2. **Recompilar el Proyecto**  
+   Ejecuta el script _recompile.txt_, que contiene las instrucciones necesarias para recompilar el programa:
+   _bash_
+   ./recompile.txt
+   _bash_
 
-2. **MacOS**:
-   - Descarga Docker Desktop desde [Docker Desktop para Mac](https://docs.docker.com/desktop/install/mac-install/).
-   - Sigue las instrucciones de instalación y verifica que Docker esté en ejecución.
+3. **Actualizar el Ejecutable**  
+   Copia el archivo _.exe_ generado y pégalo en la carpeta raíz del proyecto para asegurarte de que el usuario final tenga acceso a la última versión.
 
-3. **Linux**:
-   - Sigue las instrucciones específicas para tu distribución en la [documentación oficial de Docker para Linux](https://docs.docker.com/engine/install/).
-
-## Ejecución con Docker
-
-### 1. Clonar o descargar el repositorio
-
-Descarga o clona el repositorio que contiene el `Dockerfile`, el script `run.bat`, y el código de la aplicación.
-
-### 2. Ejecutar el contenedor con `run.bat`
-
-Para iniciar la aplicación en un sistema Windows, ejecuta el archivo `run.bat`. Este script está configurado para:
-
-1. Ejecutar el contenedor Docker basado en la imagen construida en el paso anterior.
-2. Iniciar el archivo principal `app.py` de la aplicación dentro del contenedor.
-
-## Notas adicionales
-
-- **Compatibilidad**: Docker garantiza un entorno aislado, eliminando problemas de configuración y compatibilidad de dependencias.
-- **Solución de problemas**: Si encuentras problemas al ejecutar la aplicación, asegúrate de que Docker esté actualizado y funcionando correctamente en tu sistema.
+---
