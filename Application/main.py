@@ -1,138 +1,117 @@
-from PySide6.QtCore import QObject, Signal, Slot, QUrl
-from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtWidgets import QApplication
+import os
 import sys
-import threading
 import time
-import pickle
 import numpy as np
-from keras.models import load_model
+import tensorflow as tf
+import pickle
+from PyQt6.QtWidgets import QApplication, QWidget, QVBoxLayout, QLabel, QFrame
+from PyQt6.QtCore import QTimer, Qt
+import pyqtgraph as pg
 
+print("Starting EEG Classifier Application")
 
+class PlotManager:
+    def __init__(self, layout):
+        self.plot_widget = pg.PlotWidget()
+        self.plot_widget.setBackground('#1a1a2e')
+        self.plot_widget.setTitle("EEG Signal", color="w", size="15pt")
+        self.plot_widget.setLabel('left', 'Amplitude', color='white', size=15)
+        self.plot_widget.setLabel('bottom', 'Samples', color='white', size=15)
+        self.plot_widget.addLegend()
+        self.line = self.plot_widget.plot(pen=pg.mkPen(color='r', width=2), name="EEG Signal")
+        layout.addWidget(self.plot_widget)
 
-#We load in the encoder and the data 
-with open('label_encoder.pkl', 'rb') as file:
-    label_encoder = pickle.load(file)
+    def update_plot(self, eeg_signal):
+        self.line.setData(eeg_signal)
 
-X = np.load('X.npy')
-
-model = load_model('eegModel.h5')
-
-
-count =0
-
-
-
-
-# BackendConnector class for updating text in QML
-class BackendConnector(QObject):
-    updateTextSignal = Signal(str)
-    updateEEGStateSignal = Signal(str,str)
-    @Slot(str)
-    def updateText(self, text):
-        self.updateTextSignal.emit(text)
-
-    @Slot(str,str)
-    def updateEEgState(self,text,color):
-        self.updateEEGStateSignal.emit(text,color)
-
-
-
-
-# Function to update text in QML (called from Python)
-def update_text_in_qml(root, new_text):
-    text2_object = root.findChild(QObject, "text2")  # Use objectName here
-    if text2_object:
-        text2_object.setProperty("text", new_text)
-    else:
-        print("Error: Could not find 'text2' object")
-
-
-def updateEEGTextState(root, text,color):
-    stateObject = root.findChild(QObject,"text1")
-    containerObject = root.findChild(QObject,"rectangle1")
-    if stateObject:
-        stateObject.setProperty("text", text)
-        containerObject.setProperty("color",color)
-    else:
-        print("Error, could not fint object")
+def update_eeg_plot(plot_manager, eeg_state_label, prediction_label, eeg_state_container):
+    global count
     
-        
-
-
-
-#Function that will run on a separate thread to update the EEG state
-def simulateEEGConection(backend):
-    backend.updateEEGStateSignal.emit("Idle","#72AEE6")
-    time.sleep(2)
-    while True:
-        
-        backend.updateEEGStateSignal.emit("Connected", "#39FF14")
+    if count == 0:
         time.sleep(3)
-
-
-# Function that runs in a separate thread to continuously update text
-def change_text_after_delay(backend):
-    global count  # Use the global variable count
-    time.sleep(2)  # Wait for 3 seconds
+        eeg_state_label.setText("Connected")
+        eeg_state_container.setStyleSheet("background-color: #39FF14; border-radius: 10px;")
     
-    while True:
-        time.sleep(0.5)  
-        
-        if count >= len(X):
-            break
+    if count >= X.shape[0]:
+        print("Reached end of data")
+        return
 
-        pred = model.predict(np.expand_dims(X[count],axis=0))
-        pred = np.argmax(pred,axis=1)
-        prediction = label_encoder.classes_[pred]
-        
-        
-        
-        
-        
-        
-        backend.updateText(f"{prediction[0]}")
-        count += 1  # Increment the count for the next update
+    eeg_signal = X[count][0, :]
+    plot_manager.update_plot(eeg_signal)
 
-# Main function to set up the application
+    pred = model.predict(np.expand_dims(X[count], axis=0))
+    pred = np.argmax(pred, axis=1)
+    prediction = label_encoder.classes_[pred][0]
+    
+    prediction_label.setText(prediction)
+    count += 1
+
 def main():
+    # Ensure the offscreen platform is set for headless environments
+    # os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    os.environ["DISPLAY"] = ":99"
+
+    # Initialize QApplication before any other GUI components
     app = QApplication(sys.argv)
-    engine = QQmlApplicationEngine()
 
-    # Correct path to your QML file
-    qml_file_path = "C:/Users/Danie/OneDrive/Desktop/Escuela/IA/Semestre 6/IS/EEG-Classifier-Softwate-Engineering/Application/App.qml"
-    engine.load(QUrl.fromLocalFile(qml_file_path))
-
-    # Check if QML file was loaded successfully
-    if not engine.rootObjects():
-        print(f"Error: Failed to load QML file from {qml_file_path}")
-        sys.exit(-1)
-    else:
-        print("QML file loaded successfully")
-
-    # Get the root object from the QML
-    root = engine.rootObjects()[0]
-
-    # Create backend connector object
-    backend = BackendConnector()
-
-    # Connect the Python signal to the QML text2 object
-    backend.updateTextSignal.connect(lambda new_text: update_text_in_qml(root, new_text))
+    # Load models and data
+    global model, label_encoder, X, count
+    with open('label_encoder.pkl', 'rb') as file:
+        label_encoder = pickle.load(file)
     
-    #Connect the Python signal to the EEG state object
-    backend.updateEEGStateSignal.connect(lambda eegStateText, colorText: updateEEGTextState(root,eegStateText,colorText))
-    
+    X = np.load('X.npy')
+    model = tf.keras.models.load_model('eegModel.h5')
+    count = 0
 
-    # Start the update thread
-    threading.Thread(target=change_text_after_delay, args=(backend,), daemon=True).start()
+    # Main GUI setup
+    window = QWidget()
+    main_layout = QVBoxLayout(window)
 
-    #We now start the eeg state update thread
-    threading.Thread(target=simulateEEGConection,args=(backend,),daemon=True).start()
+    # PlotManager to handle EEG signal plotting
+    plot_manager = PlotManager(main_layout)
 
+    # Bottom container layout
+    bottom_container = QVBoxLayout()
+    main_layout.addLayout(bottom_container)
 
-    # Execute the application
+    # EEG State Container
+    eeg_state_container = QFrame()
+    eeg_state_container.setStyleSheet("background-color: #72AEE6; border-radius: 10px;")
+    eeg_state_container.setFixedSize(300, 100)
+
+    eeg_state_label = QLabel("Idle", eeg_state_container)
+    eeg_state_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    eeg_state_label.setStyleSheet("color: white; font-size: 40px; font-weight: bold;")
+
+    eeg_state_layout = QVBoxLayout(eeg_state_container)
+    eeg_state_layout.addWidget(eeg_state_label, alignment=Qt.AlignmentFlag.AlignCenter)
+    bottom_container.addWidget(eeg_state_container, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+    # Prediction Container
+    prediction_container = QFrame()
+    prediction_container.setStyleSheet("background-color: #1d2951; border-radius: 10px;")
+    prediction_container.setFixedSize(300, 100)
+
+    prediction_label = QLabel("Prediction", prediction_container)
+    prediction_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    prediction_label.setStyleSheet("color: white; font-size: 40px; font-weight: bold;")
+
+    prediction_layout = QVBoxLayout(prediction_container)
+    prediction_layout.addWidget(prediction_label, alignment=Qt.AlignmentFlag.AlignCenter)
+    bottom_container.addWidget(prediction_container, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+    # Finalize and display the window
+    window.setLayout(main_layout)
+    window.setWindowTitle("EEG Classifier")
+    window.show()
+
+    # Timer to update EEG plot
+    timer = QTimer()
+    timer.timeout.connect(lambda: update_eeg_plot(plot_manager, eeg_state_label, prediction_label, eeg_state_container))
+    timer.start(1000)
+
+    # Start application event loop
     sys.exit(app.exec())
 
-# Entry point
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
