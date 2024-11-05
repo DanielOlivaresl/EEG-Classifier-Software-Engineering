@@ -194,3 +194,142 @@ def filter_eeg(X: np.ndarray, sampling_freq: int = 250, notch_freq: float = 60.0
     filtered_eeg_data *= scaling_factor
 
     return filtered_eeg_data
+
+
+
+
+
+def convert_eeg_vmrk_to_csv(vhdr_file: str, output_csv_file: str):
+    """
+    Convert BrainVision EEG data and event markers to CSV format with remapped column names.
+
+    Parameters:
+    vhdr_file (str): Path to the .vhdr file.
+    output_csv_file (str): Path to the output CSV file.
+    """
+    if not vhdr_file.endswith('.vhdr'):
+        raise ValueError("The input file must be a .vhdr file.")
+    
+    if not os.path.exists(vhdr_file):
+        raise FileNotFoundError(f".vhdr file not found: {vhdr_file}")
+    
+    # Load the EEG data using the .vhdr file
+    raw = mne.io.read_raw_brainvision(vhdr_file, preload=True)
+    
+    # Get the data as a NumPy array
+    data, times = raw.get_data(return_times=True)
+    
+    # Create a DataFrame for EEG data
+    df_eeg = pd.DataFrame(data.T, columns=raw.ch_names)
+    df_eeg['Time'] = times
+
+    # Try to load events from the .vmrk file referenced by the .vhdr file
+    try:
+        events, event_ids = mne.events_from_annotations(raw)
+        df_events = pd.DataFrame(events, columns=['Sample', 'Previous', 'EventID'])
+        df_events['Time'] = df_events['Sample'] / raw.info['sfreq']
+        df_events['State'] = df_events['EventID']
+        df_events.drop(columns=['Sample', 'Previous', 'EventID'], inplace=True)  # Keep only time and state
+    except ValueError as e:
+        print(f"Warning: Could not extract annotations from {vhdr_file}: {str(e)}")
+        df_events = pd.DataFrame(columns=['Time', 'State'])
+    
+    # Merge EEG data and events DataFrames on time using the nearest match
+    df = pd.merge_asof(df_eeg, df_events, on='Time', direction='nearest')
+    
+    # Rename EEG columns to have consistent 'EEG {i}' naming
+    eeg_columns = [f'EEG {i+1}' for i in range(len(raw.ch_names))]
+    df.rename(columns=dict(zip(raw.ch_names, eeg_columns)), inplace=True)
+    
+    # Include only the necessary columns: EEG channels, Time, and State
+    columns_to_include = eeg_columns + ['Time', 'State']
+    df_filtered = df[columns_to_include]
+    
+    # Save the final DataFrame to a CSV file
+    df_filtered.to_csv(output_csv_file, index=False)
+    print(f"Data from {vhdr_file} has been converted and saved to {output_csv_file}")
+
+
+
+def process_eeg(TIME_STEPS:int = 1200, included_states: List[str] =["Up", "Down", "Left", "Right", "Select"], subject_folder :str ='./NPYData/Subject_0')->Tuple[np.ndarray, np.ndarray]:
+    """
+        Process EEG data files from a specified subject folder and extract relevant EEG data segments.
+
+        Parameters:
+        TIME_STEPS (int): The number of time steps for each EEG data segment. Default is 1200.
+        included_states (list): List of states to include in the processing. Default is ["Up", "Down", "Left", "Right", "Select"].
+        subject_folder (str): Path to the folder containing EEG data files for the subject. Default is './NPYData/Subject_0'.
+
+        Returns:
+        tuple: A tuple containing:
+            - X (np.ndarray): A NumPy array of shape (number of samples, number of EEG channels, TIME_STEPS) containing the processed EEG data.
+            - Y (np.ndarray): A NumPy array of shape (number of samples,) containing the corresponding states for each EEG data segment.
+
+        Notes:
+        - The function reads CSV files from the specified subject folder.
+        - Each CSV file is expected to contain columns 'EEG 1' to 'EEG 8' for EEG channels and 'State' for the state labels.
+        - The function groups the EEG data by state transitions and extracts segments of length TIME_STEPS.
+        - If a segment is shorter than TIME_STEPS, it is padded with zeros.
+        - The function ensures that all extracted segments have the same shape.
+        - If there are inconsistent shapes, the function filters out those segments and only retains the consistent ones.
+    """
+
+    files = os.listdir(subject_folder)
+    subjectID = subject_folder.split('_')[-1]
+    dfs = []
+    # Read and process each file
+    for file in files:
+        if file.endswith('.csv'):
+            df = pd.read_csv(os.path.join(subject_folder, file))
+        elif file.endswith('.npy'):
+            df = pd.DataFrame(np.load(os.path.join(subject_folder, file),allow_pickle=True)).rename({0:'EEG 1', 1:'EEG 2', 2:'EEG 3', 3:'EEG 4', 4:'EEG 5', 5:'EEG 6', 6:'EEG 7', 7:'EEG 8', 17:'State'}, axis=1)
+        else:
+            #Skipping non-CSV file
+            continue
+        df['Subject'] = subjectID
+        dfs.append(df[['EEG 1', 'EEG 2', 'EEG 3', 'EEG 4', 'EEG 5', 'EEG 6', 'EEG 7', 'EEG 8', 'State', 'Subject']])
+
+    # Process EEG data for each state
+    all_state_data = []
+
+    for df in dfs:
+        state_groups = df.groupby((df['State'] != df['State'].shift()).cumsum())
+
+        for _, data in state_groups:
+            state = data['State'].iloc[0]
+            if state in included_states:
+                eeg_data = np.transpose(data[['EEG 1', 'EEG 2', 'EEG 3', 'EEG 4', 'EEG 5', 'EEG 6', 'EEG 7', 'EEG 8']].values)[:,:TIME_STEPS]
+                # apply padding if timesteps are smaller than 1200
+                if eeg_data.shape[1] < TIME_STEPS:
+                    pad_width = TIME_STEPS - eeg_data.shape[1]
+                    eeg_data = np.pad(eeg_data, ((0, 0), (0, pad_width)), mode='constant', constant_values=0)
+                else:
+                    eeg_data = eeg_data[:, :TIME_STEPS]
+
+                all_state_data.append(pd.DataFrame({'State': [state], 'EEG Data': [eeg_data]}))
+
+    # Concatenate the processed data
+    final_df = pd.concat(all_state_data, ignore_index=True)
+
+    # Fetch the list of arrays
+    data_list = final_df['EEG Data'].values
+    state_list = final_df['State'].values
+
+    # Check the shapes of all arrays
+    shapes = [arr.shape for arr in data_list]
+
+    # Ensure all shapes are the same
+    if len(set(shapes)) == 1:
+        # All arrays have the same shape, so convert the list to a NumPy array
+        X = np.array([item for item in data_list])
+        Y = np.array([state for state in final_df['State'].values])
+    else:
+        # Print the shapes that are inconsistent
+        print("Inconsistent shapes found:", set(shapes))
+        # Filter and store only consistent shapes of data
+        X = np.array([item for item in data_list if item.shape[1] == TIME_STEPS])
+        Y = np.array([state for item, state in zip(data_list, state_list) if item.shape[1] == TIME_STEPS])
+
+    X = X.astype('float64')
+
+    return X, Y
