@@ -6,9 +6,9 @@ import numpy
 import pygsp
 # import pyemd
 import pywt
-import sklearn.decomposition
 import numpy as np
 from scipy import signal
+from sklearn.decomposition import PCA, FastICA
 
 
 def laplacianFilter(signal):
@@ -85,11 +85,28 @@ def notchFilter(signal,freqs,Q = 30,fs=250):
 
         
     
-def ica(signals,ica):
+def apply_ICA(X: np.ndarray, n_components: Optional[int] = 2) -> np.ndarray:
+    """
+    Apply ICA to each trial in the data and flatten the output to create feature vectors.
+    Fits ICA on the entire dataset and applies the transformation.
     
+    Parameters:
+    - X: NumPy array of shape (trials, channels, time_steps)
+    - n_components: Number of ICA components to extract. If None, all components are used.
     
-    return ica.fit_transform(signals.T).T
-
+    Returns:
+    - ica_df: Transformed and flattened, where each row is a flattened feature vector for an trial.
+    """
+    
+    # Prepare the data for ICA: shape should be (n_samples, n_features)
+    num_trials, num_channels, num_time_steps = X.shape
+    
+    # Reshape and apply ICA on the entire dataset
+    X_reshaped = X.reshape(num_trials, num_channels * num_time_steps)
+    ica = FastICA(n_components=n_components, random_state=0)
+    ica_data = ica.fit_transform(X_reshaped)  # Fit and transform on the entire dataset
+    
+    return ica_data
 
 #Methods for automatic artifact removal
 
