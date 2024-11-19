@@ -1,6 +1,6 @@
 # EEG Classifier Software Engineering
 
-Este proyecto permite clasificar señales EEG mediante un modelo de aprendizaje automático, proporcionando una interfaz sencilla para el usuario final y opciones de desarrollo para mejoras.
+Este proyecto permite clasificar señales EEG mediante un modelo de aprendizaje automático, proporcionando una interfaz sencilla para el usuario final y opciones de desarrollo para mejora.
 
 ## Instrucciones para Usuarios
 
